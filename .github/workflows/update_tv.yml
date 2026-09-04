@@ -1,0 +1,40 @@
+name: Scrape TMDb TV Shows & Release Dataset
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:        # Manual "Run workflow" button in GitHub Actions
+  schedule:
+    - cron: '0 0 * * *'    # Runs daily at midnight (00:00 UTC)
+
+permissions:
+  contents: write           # Allows creating and updating releases
+
+jobs:
+  scrape-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run TV Shows Updater
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          python update_tv_dataset.py
+
+      - name: Release Latest TV Dataset
+        uses: softprops/action-gh-release@v2

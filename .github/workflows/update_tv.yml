@@ -1,17 +1,17 @@
-name: Scrape TMDb TV Shows & Release Dataset
+name: Build TV Master DB & Daily Release
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:        # Manual "Run workflow" button in GitHub Actions
+  workflow_dispatch:        # Manual "Run workflow" button
   schedule:
     - cron: '0 0 * * *'    # Runs daily at midnight (00:00 UTC)
 
 permissions:
-  contents: write           # Allows creating and updating releases
+  contents: write           # Required to create and update releases
 
 jobs:
-  scrape-and-release:
+  build-and-release:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -30,11 +30,41 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run TV Shows Updater
+      - name: Build Master TV Database
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
-          python update_tv_dataset.py
+          python build_master_tv_db.py
 
-      - name: Release Latest TV Dataset
+      - name: Compress SQLite Database
+        run: |
+          # Compress the database for fast downloads (-k keeps original, -9 is max compression)
+          gzip -k -9 data/tv_master.db
+
+      - name: Get Current Date for Release Title
+        id: date
+        run: echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Release Master TV Dataset
         uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "TV Master Database (${{ steps.date.outputs.today }})"
+          body: |
+            Automated daily build of the master TV database.
+
+            **Included Data:**
+            - IMDb Master Show Info & Overall Ratings
+            - IMDb Season-by-Season Ratings & Episode Counts
+            - TMDb Posters, Backdrops, Overview & Taglines
+            - Broadcast Networks & Production Studios
+            - Creators, Showrunners & Top Cast with Headshot Photo URLs
+            - TMDb & IMDb "More Like This" Recommendations
+
+            **Download:**
+            Download `tv_master.db.gz`, extract it, and open it in DB Browser for SQLite.
+          files: |
+            data/tv_master.db.gz
+          draft: false
+          prerelease: false
+          make_latest: true
